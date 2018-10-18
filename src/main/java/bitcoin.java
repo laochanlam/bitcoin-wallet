@@ -1,10 +1,10 @@
-import org.bitcoinj.core.Address;
-import org.bitcoinj.core.ECKey;
-import org.bitcoinj.core.NetworkParameters;
+import org.bitcoinj.core.*;
 import org.bitcoinj.params.RegTestParams;
-import org.bitcoinj.params.TestNet3Params;
+import org.bitcoinj.store.BlockStoreException;
 import org.bitcoinj.utils.BriefLogFormatter;
+import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
+import org.omg.CORBA.portable.UnknownException;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,42 +12,36 @@ import java.io.IOException;
 public class bitcoin {
     public static void main(String args[]) {
         BriefLogFormatter.init();
-//        if (args.length < 2) {
-//            System.err.println("Usage: address-to-send-back-to [regtest|testnet]");
-//            return;
-//        }
-
-        NetworkParameters params;
-        params = RegTestParams.get();
-
-        Wallet wallet = null;
+        Wallet wallet;
         final File walletFile = new File("lam.wallet");
-        ECKey key = new ECKey();
-        try {
-            wallet = new Wallet(params);
-            wallet.addKey(key);
-            wallet.saveToFile(walletFile);
 
-
-            Address addressFromKey = key.toAddress(params);
-            System.out.println(addressFromKey);
-        } catch (IOException e) {
-            System.out.println("Unable to create wallet file.");
-        }
-/*        String filePrefix;
-
-        if (args[1].equals("testnet")) {
-            params = TestNet3Params.get();
-            filePrefix = "forwarding-service-testnet";
-        } else if (args[1].equals("regtest")) {
+        if (args[0].equals("create")) {
+            NetworkParameters params;
             params = RegTestParams.get();
-            filePrefix = "forwarding-service-regtest";
-        } else {
-            return;
-        }*/
+            ECKey key = new ECKey();
+
+            try {
+                wallet = new Wallet(params);
+                wallet.addKey(key);
+                wallet.saveToFile(walletFile);
+            } catch (IOException e) {
+                System.out.println("Unable to create wallet file.");
+            }
+        } else if (args[0].equals("send")) {
+            try {
+                wallet = Wallet.loadFromFile(walletFile);
+                ECKey key = wallet.currentReceiveKey();
+                System.out.println(key);
+            } catch (UnreadableWalletException e) {
+                e.printStackTrace();
+            }
+        }
+
 
 //        System.out.println(key);
-        Address addressFromKey = key.toAddress(params);
-        System.out.println(addressFromKey);
+//        Address addressFromKey = key.toAddress(params);
+//        System.out.println(addressFromKey);
+
+
     }
 }
