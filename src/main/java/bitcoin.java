@@ -1,5 +1,6 @@
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.MoreExecutors;
 import org.bitcoinj.core.*;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.params.TestNet3Params;
@@ -10,16 +11,18 @@ import org.bitcoinj.wallet.listeners.WalletCoinsReceivedEventListener;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.concurrent.Future;
 
 public class bitcoin {
+    private static WalletAppKit kit;
+    private static Address targetAddress;
     public static void main(String args[]) {
         BriefLogFormatter.init();
         Wallet wallet;
         NetworkParameters params = TestNet3Params.get();
-        final File walletFile = new File("lam.wallet");
+        targetAddress = new Address(params, "miVBD7TZ6XVqy2mJNGM9D7xgVAgcrv48Ys");
+        final File walletFile = new File("new.wallet");
 
-        if (args[0].equals("create")) {
+        if (args[0].equals("createKey")) {
             ECKey key = new ECKey();
 
             try {
@@ -30,66 +33,90 @@ public class bitcoin {
             } catch (IOException e) {
                 System.out.println("Unable to create wallet file.");
             }
-        } else if (args[0].equals("send")) {
+        } else if (args[0].equals("checkKey")) {
             try {
                 wallet = Wallet.loadFromFile(walletFile);
                 ECKey key = wallet.currentReceiveKey();
-                System.out.println(key.toAddress(params));
-
+                System.out.println("Address: " + key.toAddress(params));
+                System.out.println("Public Key: " + key.getPublicKeyAsHex());
+                System.out.println("Private Key: " + key.getPrivateKeyAsHex() + "\n");
+                System.out.println(wallet);
             } catch (UnreadableWalletException e) {
                 e.printStackTrace();
             }
-        } else if (args[0].equals("test")) {
-            String filePrefix = "forwarding-service-testnet";
-            // Start up a basic app using a class that automates some boilerplate. Ensure we always have at least one key.
-            WalletAppKit kit = new WalletAppKit(params, new File("."), filePrefix) {
+        } else if (args[0].equals("sendCoin")) {
+            String filePrefix = "new";
+            kit = new WalletAppKit(params, new File("."), filePrefix) {
                 @Override
                 protected void onSetupCompleted() {
-                    // This is called in a background thread after startAndWait is called, as setting up various objects
-                    // can do disk and network IO that may cause UI jank/stuttering in wallet apps if it were to be done
-                    // on the main thread.
-                    wallet().addCoinsReceivedEventListener(new WalletCoinsReceivedEventListener() {
-                        @Override
-                        public void onCoinsReceived(Wallet w, Transaction tx, Coin prevBalance, Coin newBalance) {
-                            // Runs in the dedicated "user thread".
-                            Coin value = tx.getValueSentToMe(w);
-                            System.out.println("Received tx for " + value.toFriendlyString() + ": " + tx);
-                            System.out.println("Transaction will be forwarded after it confirms.");
-
-                            Futures.addCallback(tx.getConfidence().getDepthFuture(1), new FutureCallback<TransactionConfidence>() {
-                                @Override
-                                public void onSuccess(TransactionConfidence result) {
-                                    System.out.println("Success!");
-                                }
-
-                                @Override
-                                public void onFailure(Throwable t) {}
-
-
-                            });
-                        }
-                    });
-
                     if (wallet().getKeyChainGroupSize() < 1)
                         wallet().importKey(new ECKey());
 
                     ECKey key = wallet().currentReceiveKey();
-                    System.out.println(key.toAddress(params));
-
-                    Coin value = wallet().getBalance();
-                    System.out.println(value);
+                    System.out.println("Address: " + key.toAddress(params));
+                    System.out.println("Public Key: " + key.getPublicKeyAsHex());
+                    System.out.println("Private Key: " + key.getPrivateKeyAsHex() + "\n");
+                    System.out.println(wallet());
                 }
             };
+
             // Download the block chain and wait until it's done.
             kit.startAsync();
             kit.awaitRunning();
-        }
+
+            kit.wallet().addCoinsReceivedEventListener(new WalletCoinsReceivedEventListener() {
+                @Override
+                public void onCoinsReceived(Wallet w, final Transaction tx, Coin prevBalance, Coin newBalance) {
+
+                    Coin value = tx.getValueSentToMe(w);
+                    System.out.println("Received tx for " + value.toFriendlyString() + ": " + tx);
+                    System.out.println("Transaction will be forwarded after it confirms.");
 
 
+                    Futures.addCallback(tx.getConfidence().getDepthFuture(1), new FutureCallback<TransactionConfidence>() {
+                        @Override
+                        public void onSuccess(TransactionConfidence result) {
+                            System.out.println("receive Success!");
+                            forwardCoins(tx);
+                        }
+
+                        @Override
+                        public void onFailure(Throwable t) {
+                        }
+
+                    });
+                }
+            });
 //        System.out.println(key);
 //        Address addressFromKey = key.toAddress(params);
 //        System.out.println(addressFromKey);
 
+            try {
+                Thread.sleep(Long.MAX_VALUE);
+            } catch (InterruptedException ignored) {}
+
+        }
 
     }
+
+    private static void forwardCoins(Transaction tx) {
+        try {
+            Coin value = tx.getValueSentToMe(kit.wallet());
+            System.out.println("Forwarding " + value.toFriendlyString());
+            final Coin amountToSend = value.subtract(Transaction.REFERENCE_DEFAULT_MIN_TX_FEE);
+            System.out.println("Amount to send: " + value.toFriendlyString());
+            final Wallet.SendResult sendResult = kit.wallet().sendCoins(kit.peerGroup(), targetAddress, amountToSend);
+            System.out.println("sending...");
+            sendResult.broadcastComplete.addListener(new Runnable() {
+                @Override
+                public void run() {
+                    // The wallet has changed now, it'll get auto saved shortly or when the app shuts down.
+                    System.out.println("Sent coins onwards! Transaction hash is " + sendResult.tx.getHashAsString());
+                }
+            }, MoreExecutors.directExecutor());
+        } catch (InsufficientMoneyException e){
+            e.printStackTrace();
+        }
+    }
 }
+
