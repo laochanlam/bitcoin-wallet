@@ -1,16 +1,22 @@
+import com.google.common.util.concurrent.ExecutionError;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.bitcoinj.core.*;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.params.TestNet3Params;
+import org.bitcoinj.script.Script;
+import org.bitcoinj.script.ScriptBuilder;
 import org.bitcoinj.utils.BriefLogFormatter;
+import org.bitcoinj.wallet.SendRequest;
 import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
 import org.bitcoinj.wallet.listeners.WalletCoinsReceivedEventListener;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 
 public class bitcoin {
     private static WalletAppKit kit;
@@ -20,7 +26,8 @@ public class bitcoin {
         Wallet wallet;
         NetworkParameters params = TestNet3Params.get();
         targetAddress = new Address(params, "miVBD7TZ6XVqy2mJNGM9D7xgVAgcrv48Ys");
-        final File walletFile = new File("new.wallet");
+        final File walletFile = new File("multisig.wallet");
+        String filePrefix = "new";
 
         if (args[0].equals("createKey")) {
             ECKey key = new ECKey();
@@ -44,8 +51,7 @@ public class bitcoin {
             } catch (UnreadableWalletException e) {
                 e.printStackTrace();
             }
-        } else if (args[0].equals("sendCoin")) {
-            String filePrefix = "new";
+        } else if (args[0].equals("receiveForward")) {
             kit = new WalletAppKit(params, new File("."), filePrefix) {
                 @Override
                 protected void onSetupCompleted() {
@@ -87,15 +93,70 @@ public class bitcoin {
                     });
                 }
             });
-//        System.out.println(key);
-//        Address addressFromKey = key.toAddress(params);
-//        System.out.println(addressFromKey);
-
             try {
                 Thread.sleep(Long.MAX_VALUE);
             } catch (InterruptedException ignored) {}
 
         }
+
+        /** For Multi-Signature, using bitcoind instead.
+        /* You can find some reference here
+        /* https://bitcoin.stackexchange.com/questions/6100/how-will-multisig-addresses-work */
+//
+//        else if (args[0].equals("multiSigSend")) {
+//            filePrefix = "multisig";
+//            System.out.println("Inside multiSig!");
+//            kit = new WalletAppKit(params, new File("."), filePrefix);
+//            kit.startAsync();
+//            kit.awaitRunning();
+//            System.out.println("Network connected!");
+//            wallet = kit.wallet();
+//            ECKey key = wallet.currentReceiveKey();
+//            System.out.println("Address: " + key.toAddress(params));
+//            System.out.println("Public Key: " + key.getPublicKeyAsHex());
+//            System.out.println("Private Key: " + key.getPrivateKeyAsHex() + "\n");
+//            System.out.println(wallet);
+////            wallet.cleanup();
+//            System.out.println(wallet);
+////
+//            try {
+//                /* Sending Coins to Multisig */
+//                /* Create MultisigAddress */
+//                List<ECKey> keys = Arrays.asList(new ECKey(), new ECKey(), new ECKey(), new ECKey());
+//                wallet.importKeys(keys);
+//                /* Create Script */
+//                Script payingToMultisigTxoutScript = ScriptBuilder.createMultiSigOutputScript(3, keys);
+//                System.out.println("Is sent to multisig: " + payingToMultisigTxoutScript.isSentToMultiSig());
+//                System.out.println("redeemScript: " + payingToMultisigTxoutScript);
+//                /* Create Transaction */
+//                Transaction payingToMultiSigTx = new Transaction(params);
+//                Coin value = Coin.valueOf(0, 5);
+//                payingToMultiSigTx.addOutput(value, payingToMultisigTxoutScript);
+//                SendRequest request = SendRequest.forTx(payingToMultiSigTx);
+//                wallet.completeTx(request);
+//                PeerGroup peerGroup = kit.peerGroup();
+//                peerGroup.broadcastTransaction(request.tx).broadcast().get();
+//                System.out.println("Paying to multisig transaction broadcasted!");
+//
+//                Thread.sleep(Long.MAX_VALUE);
+//            } catch(Exception e) {
+//                e.printStackTrace();
+//            }
+//        } else if (args[0].equals("multiSigReceived")) {
+////            filePrefix = "multisigReceived";
+////            System.out.println("Inside multiSig!");
+////            kit = new WalletAppKit(params, new File("."), filePrefix);
+////            kit.startAsync();
+////            kit.awaitRunning();
+////            System.out.println("Network connected!");
+////            wallet = kit.wallet();
+////
+////            Transaction redeemingMultisigTx1 = new Transaction(params);
+////            TransactionOutput multisigOutput = wallet.getUnspents().get(0).getParentTransaction().getOutputs().stream().filter(unspent -> unspent.getScriptPubKey().isSentToMultiSig()).findFirst().get();
+//
+//
+//        }
+//
 
     }
 
@@ -119,4 +180,3 @@ public class bitcoin {
         }
     }
 }
-
