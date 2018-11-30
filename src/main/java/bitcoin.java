@@ -3,6 +3,7 @@ import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.MoreExecutors;
 import org.bitcoinj.core.*;
+import org.bitcoinj.crypto.TransactionSignature;
 import org.bitcoinj.kits.WalletAppKit;
 import org.bitcoinj.params.TestNet3Params;
 import org.bitcoinj.script.Script;
@@ -12,6 +13,8 @@ import org.bitcoinj.wallet.SendRequest;
 import org.bitcoinj.wallet.UnreadableWalletException;
 import org.bitcoinj.wallet.Wallet;
 import org.bitcoinj.wallet.listeners.WalletCoinsReceivedEventListener;
+import static com.google.common.base.Preconditions.checkState;
+
 
 import java.io.File;
 import java.io.IOException;
@@ -40,7 +43,7 @@ public class bitcoin {
             } catch (IOException e) {
                 System.out.println("Unable to create wallet file.");
             }
-        } else if (args[0].equals("checkKey")) {
+        } else if (args[0].equals("checkWallet")) {
             try {
                 wallet = Wallet.loadFromFile(walletFile);
                 ECKey key = wallet.currentReceiveKey();
@@ -99,65 +102,102 @@ public class bitcoin {
 
         }
 
-        /** For Multi-Signature, using bitcoind instead.
-        /* You can find some reference here
-        /* https://bitcoin.stackexchange.com/questions/6100/how-will-multisig-addresses-work */
-//
-//        else if (args[0].equals("multiSigSend")) {
-//            filePrefix = "multisig";
-//            System.out.println("Inside multiSig!");
-//            kit = new WalletAppKit(params, new File("."), filePrefix);
-//            kit.startAsync();
-//            kit.awaitRunning();
-//            System.out.println("Network connected!");
-//            wallet = kit.wallet();
-//            ECKey key = wallet.currentReceiveKey();
-//            System.out.println("Address: " + key.toAddress(params));
-//            System.out.println("Public Key: " + key.getPublicKeyAsHex());
-//            System.out.println("Private Key: " + key.getPrivateKeyAsHex() + "\n");
-//            System.out.println(wallet);
-////            wallet.cleanup();
-//            System.out.println(wallet);
-////
-//            try {
-//                /* Sending Coins to Multisig */
-//                /* Create MultisigAddress */
-//                List<ECKey> keys = Arrays.asList(new ECKey(), new ECKey(), new ECKey(), new ECKey());
-//                wallet.importKeys(keys);
-//                /* Create Script */
-//                Script payingToMultisigTxoutScript = ScriptBuilder.createMultiSigOutputScript(3, keys);
-//                System.out.println("Is sent to multisig: " + payingToMultisigTxoutScript.isSentToMultiSig());
-//                System.out.println("redeemScript: " + payingToMultisigTxoutScript);
-//                /* Create Transaction */
-//                Transaction payingToMultiSigTx = new Transaction(params);
-//                Coin value = Coin.valueOf(0, 5);
-//                payingToMultiSigTx.addOutput(value, payingToMultisigTxoutScript);
-//                SendRequest request = SendRequest.forTx(payingToMultiSigTx);
-//                wallet.completeTx(request);
-//                PeerGroup peerGroup = kit.peerGroup();
-//                peerGroup.broadcastTransaction(request.tx).broadcast().get();
-//                System.out.println("Paying to multisig transaction broadcasted!");
-//
-//                Thread.sleep(Long.MAX_VALUE);
-//            } catch(Exception e) {
-//                e.printStackTrace();
-//            }
-//        } else if (args[0].equals("multiSigReceived")) {
-////            filePrefix = "multisigReceived";
-////            System.out.println("Inside multiSig!");
-////            kit = new WalletAppKit(params, new File("."), filePrefix);
-////            kit.startAsync();
-////            kit.awaitRunning();
-////            System.out.println("Network connected!");
-////            wallet = kit.wallet();
-////
-////            Transaction redeemingMultisigTx1 = new Transaction(params);
-////            TransactionOutput multisigOutput = wallet.getUnspents().get(0).getParentTransaction().getOutputs().stream().filter(unspent -> unspent.getScriptPubKey().isSentToMultiSig()).findFirst().get();
-//
-//
-//        }
-//
+        else if (args[0].equals("SendtoMultisig")) {
+            filePrefix = "multisig";
+            kit = new WalletAppKit(params, new File("."), filePrefix);
+            kit.startAsync();
+            kit.awaitRunning();
+            wallet = kit.wallet();
+//            System.out.println("Generating 4 Keys");
+//            /* Create MultisigAddress */
+//            List<ECKey> keys = Arrays.asList(new ECKey(), new ECKey(), new ECKey(), new ECKey());
+//            wallet.importKeys(keys);
+            System.out.println("Network connected!");
+            List <ECKey> keys = wallet.getImportedKeys();
 
+            System.out.println(wallet);
+            System.out.println(keys);
+
+            try {
+                /* Sending Coins to Multisig */
+                /* Create Script */
+                Script payingToMultisigTxoutScript = ScriptBuilder.createMultiSigOutputScript(3, keys);
+                System.out.println("Is sent to multisig: " + payingToMultisigTxoutScript.isSentToMultiSig());
+                System.out.println("redeemScript: " + payingToMultisigTxoutScript);
+                /* Create Transaction */
+                Transaction payingToMultiSigTx = new Transaction(params);
+                Coin value = Coin.valueOf(0, 1);
+                payingToMultiSigTx.addOutput(value, payingToMultisigTxoutScript);
+                SendRequest request = SendRequest.forTx(payingToMultiSigTx);
+                wallet.completeTx(request);
+                PeerGroup peerGroup = kit.peerGroup();
+                peerGroup.broadcastTransaction(request.tx).broadcast().get();
+                System.out.println("Paying to multisig transaction broadcasted!");
+
+                Thread.sleep(Long.MAX_VALUE);
+            } catch(Exception e) {
+                e.printStackTrace();
+            }
+        } else if (args[0].equals("SendfromMultiSig")) {
+            filePrefix = "multisig";
+            kit = new WalletAppKit(params, new File("."), filePrefix);
+            kit.startAsync();
+            kit.awaitRunning();
+            wallet = kit.wallet();
+            System.out.println("Network connected!");
+            List <ECKey> keys = wallet.getImportedKeys();
+
+            System.out.println(wallet);
+            System.out.println(keys);
+
+            // finding script
+            Transaction redeemingMultisigTx1 = new Transaction(params);
+            Transaction redeemingMultisigTx2 = new Transaction(params);
+            Transaction redeemingMultisigTx3 = new Transaction(params);
+            TransactionOutput multisigOutput = wallet.getUnspents().get(0).getParentTransaction().getOutputs().get(1);
+            System.out.println(multisigOutput);
+            redeemingMultisigTx1.addInput(multisigOutput);
+            redeemingMultisigTx2.addInput(multisigOutput);
+            TransactionInput redeemMultisigTxInput = redeemingMultisigTx3.addInput(multisigOutput);
+
+            // output script
+            Coin value = multisigOutput.getValue();
+            Address finalAddress = targetAddress;
+            System.out.println("Value:" + value);
+            System.out.println("Value:" + value.div(2));
+            System.out.println("currentReceiveAddress:" + finalAddress);
+            redeemingMultisigTx1.addOutput(value.div(2), finalAddress);
+            redeemingMultisigTx2.addOutput(value.div(2), finalAddress);
+            redeemingMultisigTx3.addOutput(value.div(2), finalAddress);
+
+            // hashing
+            Script payingToMultisigTxoutScriptPubKey = multisigOutput.getScriptPubKey();
+            System.out.println("payingToMultisigTxoutScriptPubKey: " + payingToMultisigTxoutScriptPubKey);
+            checkState(payingToMultisigTxoutScriptPubKey.isSentToMultiSig());
+            Sha256Hash sighash1 = redeemingMultisigTx1.hashForSignature(0, payingToMultisigTxoutScriptPubKey, Transaction.SigHash.ALL, false);
+            Sha256Hash sighash2 = redeemingMultisigTx2.hashForSignature(0, payingToMultisigTxoutScriptPubKey, Transaction.SigHash.ALL, false);
+            Sha256Hash sighash3 = redeemingMultisigTx3.hashForSignature(0, payingToMultisigTxoutScriptPubKey, Transaction.SigHash.ALL, false);
+
+            // sign
+            ECKey.ECDSASignature partyASignature = wallet.getImportedKeys().get(0).sign(sighash1);
+            ECKey.ECDSASignature partyBSignature = wallet.getImportedKeys().get(1).sign(sighash2);
+            ECKey.ECDSASignature partyCSignature = wallet.getImportedKeys().get(2).sign(sighash3);
+
+            TransactionSignature signatureA = new TransactionSignature(partyASignature, Transaction.SigHash.ALL, false);
+            TransactionSignature signatureB = new TransactionSignature(partyBSignature, Transaction.SigHash.ALL, false);
+            TransactionSignature signatureC = new TransactionSignature(partyCSignature, Transaction.SigHash.ALL, false);
+            Script inputScript = ScriptBuilder.createMultiSigInputScript(signatureA, signatureB, signatureC);
+            System.out.println("redeeming Tx input script: " + inputScript);
+            redeemMultisigTxInput.setScriptSig(inputScript);
+            redeemMultisigTxInput.verify(multisigOutput);
+            PeerGroup peerGroup = kit.peerGroup();
+            try {
+                peerGroup.broadcastTransaction(redeemingMultisigTx3).broadcast().get();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            System.out.println("Multisig redeeming transaction broadcasted!");
+        }
     }
 
     private static void forwardCoins(Transaction tx) {
